@@ -15,6 +15,9 @@ private:
 
 	std::vector<std::vector<std::vector<std::vector<double>>>> Q_tables;
 
+	double lambda = 0.2;
+	double gamma = 0.5;
+
 public:
 	CQLearningController(HWND hwndMain);
 	virtual void InitializeLearningAlgorithm(void);
