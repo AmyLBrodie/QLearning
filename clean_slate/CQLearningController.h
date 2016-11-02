@@ -3,6 +3,7 @@
 #include "CParams.h"
 #include "CDiscCollisionObject.h"
 #include <cmath>
+#include <vector>
 
 typedef unsigned int uint;
 class CQLearningController :
@@ -11,6 +12,9 @@ class CQLearningController :
 private:
 	uint _grid_size_x;
 	uint _grid_size_y;
+
+	std::vector<std::vector<std::vector<std::vector<double>>>> Q_tables;
+
 public:
 	CQLearningController(HWND hwndMain);
 	virtual void InitializeLearningAlgorithm(void);

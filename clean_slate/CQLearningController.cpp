@@ -13,6 +13,8 @@ Refer to Watkins, Christopher JCH, and Peter Dayan. "Q-learning." Machine learni
 for a detailed discussion on Q Learning
 */
 #include "CQLearningController.h"
+#include <vector>
+
 
 
 CQLearningController::CQLearningController(HWND hwndMain):
@@ -30,6 +32,19 @@ CQLearningController::CQLearningController(HWND hwndMain):
 void CQLearningController::InitializeLearningAlgorithm(void)
 {
 	//TODO
+	
+	for (int i = 0; i < m_NumSweepers; i++) {
+		std::vector<std::vector<std::vector<double>>> actionStatesx;
+		for (int j = 0; j < _grid_size_x; j++) {
+			std::vector<std::vector<double>> actionStatesy;
+			for (int k = 0; k < _grid_size_y; k++) {
+				actionStatesy.push_back({ 0.0, 0.0, 0.0, 0.0 });
+			}
+			actionStatesx.push_back(actionStatesy);
+		}
+		Q_tables.push_back(actionStatesx);
+	}
+	
 }
 /**
  The immediate reward function. This computes a reward upon achieving the goal state of
@@ -38,7 +53,21 @@ void CQLearningController::InitializeLearningAlgorithm(void)
 */
 double CQLearningController::R(uint x,uint y, uint sweeper_no){
 	//TODO: roll your own here!
-	return 0;
+
+	double reward = 0.0;
+	int objectHit = m_vecSweepers[sweeper_no]->CheckForObject(m_vecObjects, CParams::dMineScale);
+	if (objectHit >= 0) {
+		if (m_vecObjects[objectHit]->getType == CDiscCollisionObject::Mine) {
+			if (!m_vecObjects[objectHit]->isDead) {
+				reward = 100.0;
+			}
+		}
+		else if (m_vecObjects[objectHit]->getType == CDiscCollisionObject::SuperMine) {
+			reward = -100.0f;
+		}
+	}
+
+	return reward;
 }
 /**
 The update method. Main loop body of our Q Learning implementation
