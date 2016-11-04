@@ -31,13 +31,16 @@ CQLearningController::CQLearningController(HWND hwndMain):
 */
 void CQLearningController::InitializeLearningAlgorithm(void)
 {
-	//TODO
+	setLifeState(); // set all sweepers to alive
 	
+	// set all actions for each state to 0 in the tables for each sweeper
 	for (int i = 0; i < m_NumSweepers; i++) {
 		std::vector<std::vector<std::vector<double>>> actionStatesx;
-		for (int j = 0; j < _grid_size_x; j++) {
-			std::vector<std::vector<double>> actionStatesy;
-			for (int k = 0; k < _grid_size_y; k++) {
+		for (int x = 0; x < _grid_size_x; x++)
+		{
+			std::vector<std::vector<double > > actionStatesy;
+			for (int y = 0; y < _grid_size_y; y++)
+			{
 				actionStatesy.push_back({ 0.0, 0.0, 0.0, 0.0 });
 			}
 			actionStatesx.push_back(actionStatesy);
@@ -48,15 +51,36 @@ void CQLearningController::InitializeLearningAlgorithm(void)
 }
 
 
-double maxActionValue(std::vector<double> actions) {
-	double maxValue = 0.0;
-	for (int i = 0; i < 4; i++) {
-		if (actions[i] > maxValue) {
-			maxValue = actions[i];
+
+int DecideNextMove(vector<double> actions)
+{
+	int direction = 0; 
+	double value = actions[0];
+
+	// find direction with best reward
+	for (int i = 0; i < 4; i++)
+	{
+		if (actions[i] > value) {
+			direction = i;
+			value = actions[i];
 		}
 	}
-	return maxValue;
+
+	// if multiple actions carry the same reward then randomly decide the action to be taken
+	vector<int> maxActions;
+	for (int b = 0; b < 4; b++)
+	{
+		if (actions[b] == value) {
+			maxActions.push_back(b); 
+		}
+	}
+
+	int chosenDirection = maxActions[RandInt(0, maxActions.size() - 1)];
+
+	return chosenDirection;
 }
+
+
 
 
 /**
@@ -65,18 +89,26 @@ double maxActionValue(std::vector<double> actions) {
  of course for hitting supermines/rocks!
 */
 double CQLearningController::R(uint x,uint y, uint sweeper_no){
-	//TODO: roll your own here!
-
+	
 	double reward = 0.0;
-	int objectHit = m_vecSweepers[sweeper_no]->CheckForObject(m_vecObjects, CParams::dMineScale);
-	if (objectHit >= 0) {
-		if (m_vecObjects[objectHit]->getType() == CDiscCollisionObject::Mine) {
-			if (!m_vecObjects[objectHit]->isDead()) {
-				reward = 100.0;
+	int hit = (m_vecSweepers[sweeper_no])->CheckForObject(m_vecObjects, CParams::dMineScale);
+
+	if (hit >= 0)
+	{
+		switch (m_vecObjects[hit]->getType()) {
+		case CDiscCollisionObject::Mine: // collides with a mine (collects it)
+		{
+			if (!m_vecObjects[hit]->isDead())
+			{
+				return 100.0;
 			}
+			break;
 		}
-		else if (m_vecObjects[objectHit]->getType() == CDiscCollisionObject::SuperMine) {
-			reward = -100.0f;
+		case CDiscCollisionObject::SuperMine: // collides with a suer mine (sweeper destroyed)
+		{
+			return -100.0;
+			break;
+		}
 		}
 	}
 
@@ -84,32 +116,26 @@ double CQLearningController::R(uint x,uint y, uint sweeper_no){
 }
 
 
-
+//returns the max value action of the state  
 int MaxValuedAction(std::vector<double> actions) {
-	int maxAction = 0;
-	double maxValue = actions[maxAction];
-	for (int i = 0; i < 4; i++) {
-		if (actions[i] > maxValue) {
-			maxAction = i;
-			maxValue = actions[i];
+	double maxValue = actions[0];
+	for (uint a = 1; a < 4; a++) {
+		if (actions[a] > maxValue) {
+			maxValue = actions[a];
 		}
 	}
+	return maxValue;
+}
 
-	std::vector<int> allMaxValues;
-	for (int i = 0; i < 4; i++) {
-		if (actions[i] == maxValue) {
-			allMaxValues.push_back(i);
-		}
-	}
 
-	if (allMaxValues.size() > 1) {
-		maxAction = RandInt(0, allMaxValues.size() - 1);
+// sets all sweepers to alive
+void CQLearningController::setLifeState()
+{
+	isdead.clear();
+	for (int i = 0; i < m_NumSweepers; i++)
+	{
+		isdead.push_back(false);
 	}
-	else {
-		maxAction = 0;
-	}
-
-	return allMaxValues[maxAction];
 }
 
 
@@ -130,45 +156,57 @@ bool CQLearningController::Update(void)
 	if (cDead == CParams::iNumSweepers){
 		printf("All dead ... skipping to next iteration\n");
 		m_iTicks = CParams::iNumTicks;
+
+		setLifeState();
 	}
 
-	for (uint sw = 0; sw < CParams::iNumSweepers; ++sw){
+
+	for (uint sw = 0; sw < CParams::iNumSweepers; ++sw) {
 		if (m_vecSweepers[sw]->isDead()) continue;
 		/**
 		Q-learning algorithm according to:
 		Watkins, Christopher JCH, and Peter Dayan. "Q-learning." Machine learning 8. 3-4 (1992): 279-292
 		*/
-		//1:::Observe the current state:
-		//TODO
-		SVector2D<int> position = m_vecSweepers[sw]->Position();
-		position /= 10;
+		// get current state
+		SVector2D<int> currentState = m_vecSweepers[sw]->Position();
+		currentState /= 10; 
 
-		//2:::Select action with highest historic return:
-		//TODO
-		int maxAction = MaxValuedAction(Q_tables[sw][position.x][position.y]);
-		m_vecSweepers[sw]->setRotation(ROTATION_DIRECTION(maxAction));
-
-		//now call the parents update, so all the sweepers fulfill their chosen action
-	}
+		// decide the next state
+		int nextMove = DecideNextMove(Q_tables[sw][currentState.x][currentState.y]);
 	
+		// move towards the next state
+		m_vecSweepers[sw]->setRotation((ROTATION_DIRECTION)nextMove);
+	}
+
 	CDiscController::Update(); //call the parent's class update. Do not delete this.
-	
-	for (uint sw = 0; sw < CParams::iNumSweepers; ++sw){
-		if (m_vecSweepers[sw]->isDead()) continue;
-		//TODO:compute your indexes.. it may also be necessary to keep track of the previous state
+
+	for (uint sw = 0; sw < CParams::iNumSweepers; ++sw) {
+		if (m_vecSweepers[sw]->isDead() && isdead[sw]) { 
+			continue; 
+		}
+		else if (m_vecSweepers[sw]->isDead()) {
+			isdead[sw] = true; // set sweeper to dead
+		}
+		
+		// get information on current state and previous state
 		SVector2D<int> previousPosition = m_vecSweepers[sw]->PrevPosition();
-		previousPosition /= 10;
 		SVector2D<int> position = m_vecSweepers[sw]->Position();
+		previousPosition /= 10;
 		position /= 10;
 
-		//3:::Observe new state:
-		//TODO
+		//get the previous chosen action
 		int action = (int)m_vecSweepers[sw]->getRotation();
-		//4:::Update _Q_s_a accordingly:
-		//TODO
-		Q_tables[sw][previousPosition.x][previousPosition.y][action] += (lambda * (R(position.x, position.y, sw) + (gamma * maxActionValue(Q_tables[sw][position.x][position.y])) - Q_tables[sw][previousPosition.x][previousPosition.y][action]));
-
+		
+		// update the q table
+		Q_tables[sw][previousPosition.x][previousPosition.y][action] += (learn*(R(position.x, position.y, sw) + (discount * MaxValuedAction(Q_tables[sw][position.x][position.y])) - Q_tables[sw][previousPosition.x][previousPosition.y][action]));
 	}
+
+	//reset life state of sweepers at end of iteration 
+	if (m_iTicks == CParams::iNumTicks)
+	{
+		setLifeState();
+	}
+
 	return true;
 }
 
@@ -176,3 +214,6 @@ CQLearningController::~CQLearningController(void)
 {
 	//TODO: dealloc stuff here if you need to	
 }
+
+
+

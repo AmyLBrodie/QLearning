@@ -13,10 +13,13 @@ private:
 	uint _grid_size_x;
 	uint _grid_size_y;
 
-	std::vector<std::vector<std::vector<std::vector<double>>>> Q_tables;
 
-	double lambda = 0.2;
-	double gamma = 0.5;
+	std::vector<std::vector<std::vector<std::vector<double> >>> Q_tables;
+	std::vector<bool> isdead;
+	double discount = 0.8;
+	double learn = 1.0;
+
+	void setLifeState();
 
 public:
 	CQLearningController(HWND hwndMain);
